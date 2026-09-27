@@ -1,45 +1,61 @@
 # ss2mp4
 
-Convert [Screen Studio](https://screen.studio) projects into compact HEVC MP4 files.
+**Turn bulky [Screen Studio](https://screen.studio) projects into small MP4 files, with a Mac app or from the command line.**
 
-Screen Studio projects are large. They store high-bitrate H.264 screen recordings, and each project also keeps a second copy of the media as HLS segment files. `ss2mp4` produces an MP4 with the screen recording and the microphone and system audio mixed together. It uses the Mac's hardware HEVC encoder, and the output is typically **1–5% of the project's size**. For example, a 56-minute Retina recording went from 14.3 GB to 159 MB.
+![The ss2mp4 app, listing Screen Studio projects with thumbnails, lengths, sizes and export status, with video, audio and output options on the right](docs/app.png)
 
-It is native Swift built on AVFoundation, with no dependencies such as ffmpeg. There's a command-line tool and a small Mac app for picking projects and exporting them; both use the same conversion code.
+Screen Studio projects take up a lot of space. Each one stores a high-bitrate H.264 recording and keeps a second copy of the media as HLS segments. ss2mp4 turns a project into an MP4 of the screen recording with the microphone and system audio mixed in, using the Mac's hardware HEVC encoder. Exports are typically **1–5% of the project's size**. For example, a 56-minute Retina recording went from 14.3 GB to 159 MB.
+
+- **A native Mac app:** tick the projects you want, choose the options and export.
+- **A command-line tool** for scripts and batch runs. It uses the same conversion engine.
+- **Safe:** your projects are only ever read, and each export is checked before it's saved.
+- **No dependencies:** just Swift and AVFoundation, no ffmpeg.
 
 ## Install
 
-Requires macOS 13+ and the Xcode Command Line Tools. It's built for Apple silicon, which has hardware HEVC encoding.
+You need macOS 13 or later on an Apple silicon Mac, and the Xcode Command Line Tools (`xcode-select --install`). Xcode itself isn't needed.
 
 ```sh
-make install          # builds and installs the command-line tool to ~/.local/bin/ss2mp4
-make install PREFIX=/usr/local
-make install-app      # builds and installs the app to ~/Applications/ss2mp4.app
-make install-app APPDIR=/Applications
+git clone https://github.com/barehands-io/ss2mp4.git
+cd ss2mp4
+make install-app   # the app, in ~/Applications/ss2mp4.app
+make install       # the command-line tool, in ~/.local/bin/ss2mp4
 ```
 
-## App
+To install somewhere else, use `make install-app APPDIR=/Applications` or `make install PREFIX=/usr/local`. `make uninstall-app` and `make uninstall` remove them.
 
-The app lists the projects in `~/Screen Studio Projects` (you can pick another folder) with a thumbnail, recording date, length and size on disk, and marks the ones that already have an export. Tick the projects you want, choose the options and press **Export** (⌘E).
+## Using the app
 
-- **Video:** resolution (original, 2160p, 1440p, 1080p or 720p), frame rate (24, 30 or 60 fps) and quality.
-- **Audio:** include or leave out the microphone and system audio, and optionally leave out audio that's muted in Screen Studio.
-- **Save To:** the output folder (default `~/Movies/Screen Studio Exports`), and whether to replace existing exports.
-- **Select:** all, none, not exported yet, or older than 7–365 days. Search and sorting are in the toolbar.
+Open **ss2mp4** from your Applications folder or with Spotlight. It lists the projects in `~/Screen Studio Projects` with a thumbnail, recording date, length and size, and marks the ones you've already exported. To look in another folder, click **Change…**.
 
-While exporting, the app shows progress, speed and time left, keeps the Mac awake, and shows the count in the Dock icon. **Stop** cancels the current export and removes its unfinished file; finished exports are kept. Settings and folders are remembered between launches. The app follows the same rules as the command-line tool below: it never changes your projects.
+1. Tick the projects to export. **Select** under the list picks all, none, the ones not exported yet, or the ones older than 7 to 365 days. Search and sorting are in the toolbar.
+2. Choose the options on the right.
+3. Click **Export**, or press ⌘E.
 
-## Usage
+| Option | Choices |
+|---|---|
+| Resolution | Original, 2160p, 1440p (default), 1080p or 720p. Recordings are only ever scaled down. |
+| Frame rate | 24, 30 (default) or 60 fps |
+| Quality | 0.2 to 0.9 (default 0.5). Higher is sharper and larger. |
+| Audio | Microphone and system audio on or off, and whether to leave out audio that's muted in Screen Studio |
+| Save To | The output folder (default `~/Movies/Screen Studio Exports`), and whether to replace existing exports |
+
+During an export the window shows each project's progress, the overall speed and the time left, and the Dock icon shows how far through the list it is. The Mac won't fall asleep on its own while it works. **Stop** cancels the current export and deletes its unfinished file; finished exports are kept. Right-click a project to open its export or show it in Finder. The app remembers your options and folders.
+
+## Using the command line
 
 ```sh
-ss2mp4 -n ~/"Screen Studio Projects"                # dry run: list what would be converted
+ss2mp4 -n ~/"Screen Studio Projects"                # dry run: list projects, lengths and sizes
 ss2mp4 --older-than 30 ~/"Screen Studio Projects"   # convert projects older than 30 days
 ss2mp4 --max-height 1080 --quality 0.45 path/to/Project.screenstudio
 ```
 
+Pass one or more projects or folders. Folders are searched for `.screenstudio` projects.
+
 | Option | Default | Description |
 |---|---|---|
 | `-o, --output DIR` | `~/Movies/Screen Studio Exports` | Output folder |
-| `--max-height N` | `1440` | Downscale so the height is at most N pixels; `0` keeps the original size |
+| `--max-height N` | `1440` | Scale down so the height is at most N pixels; `0` keeps the original size |
 | `--fps N` | `30` | Maximum output frame rate |
 | `--quality Q` | `0.5` | Constant-quality level from 0.0 to 1.0 (higher means better quality and bigger files) |
 | `--bitrate MBPS` | – | Use a fixed average bitrate instead of `--quality` |
@@ -48,12 +64,12 @@ ss2mp4 --max-height 1080 --quality 0.45 path/to/Project.screenstudio
 | `-n, --dry-run` | – | List projects, lengths and sizes without converting anything |
 | `--overwrite` | off | Re-convert even if the output file already exists |
 
-Behavior:
+## Your projects stay safe
 
-- **Originals are never modified or deleted.** Once you've checked the exports, delete the projects yourself.
-- Projects that already have an export are skipped, so you can safely re-run the same command.
-- Each file is written under a hidden temporary name and renamed only after its duration and tracks are verified. Ctrl-C removes the unfinished file.
-- Exported files get the original recording date as their creation and modification date.
+- **Projects are never changed or deleted.** ss2mp4 only reads them. Once you're happy with the exports, delete the projects in Screen Studio or Finder to get the space back.
+- Projects that already have an export are skipped, so it's safe to run again. An existing export is replaced only if you ask for it (**Replace existing exports** in the app, `--overwrite` on the command line).
+- Each MP4 is written under a hidden temporary name and renamed only after its duration and tracks have been checked. Stopping an export, pressing Ctrl-C or quitting removes the unfinished file.
+- Exports get the original recording date as their creation and modification date, so they sort by when you recorded them.
 
 ## What's in the output
 
@@ -81,34 +97,29 @@ Project.screenstudio/
 - `metadata.json` points to the finished media through `recorders[].sessions[].outputFilename`.
 - Sessions are sequential: a paused and resumed recording has one session per part.
 - The recording start time is stored in `unixStartMs`.
-- Renaming a project in Screen Studio can leave a tiny stub folder behind with only `recording/enhanced/`. `ss2mp4` skips these.
+- Renaming a project in Screen Studio can leave a tiny stub folder behind with only `recording/enhanced/`. ss2mp4 skips these.
 
 ## Development
 
 ```sh
-make && .build/ss2mp4 --help   # plain swiftc build (no SwiftPM or Xcode needed)
-make app && open .build/ss2mp4.app
-SS2MP4_DEBUG=1 ss2mp4 ...      # print reader/writer status after each conversion
+make && .build/ss2mp4 --help         # build the command-line tool (plain swiftc, no SwiftPM or Xcode)
+make app && open .build/ss2mp4.app   # build and run the app
+SS2MP4_DEBUG=1 ss2mp4 ...            # print reader/writer status after each conversion
 ```
 
-The source is split by responsibility:
+The code is in three parts:
 
-- `Sources/Core/` is the conversion engine shared by the tool and the app:
-  - `Project.swift` discovers and loads Screen Studio projects.
-  - `Composition.swift` joins recording sessions and prepares the video composition.
-  - `Transcoder.swift` encodes and verifies the MP4.
-  - `Export.swift` holds the export settings and converts one project: temporary file, verification, rename, and cancellation.
-  - `Formatting.swift` formats errors, sizes and durations.
-- `Sources/ss2mp4/` is the command-line tool: `CLI.swift` parses options, `Terminal.swift` prints progress, and `main.swift` runs the conversion loop.
-- `Sources/App/` is the SwiftUI app: `ExportModel.swift` holds the project list, selection and export queue, `ContentView.swift` the window, `Thumbnails.swift` the previews, and `App.swift` the app lifecycle. `make app` bundles it with `Info.plist` and signs it ad hoc.
+- `Sources/Core/` is the conversion engine shared by the tool and the app. `Project.swift` finds and loads projects, `Composition.swift` joins recording sessions, `Transcoder.swift` encodes and verifies the MP4, `Export.swift` holds the export settings and converts one project (temporary file, verification, rename and cancellation), and `Formatting.swift` formats errors, sizes and durations.
+- `Sources/ss2mp4/` is the command-line tool. `CLI.swift` parses options, `Terminal.swift` prints progress and `main.swift` runs the conversion loop.
+- `Sources/App/` is the SwiftUI app. `ExportModel.swift` holds the project list, selection and export queue, `ContentView.swift` the window, `Thumbnails.swift` the previews and `App.swift` the app lifecycle. `make app` bundles it with `Info.plist` and signs it ad hoc.
 
 In the macOS 27 SDK, SwiftUI's `@State` is a macro whose plugin ships only with Xcode, so the app keeps view state in `ObservableObject`s instead. That way it still builds with just the Command Line Tools.
 
-Ideas for next steps:
+## Ideas for next steps
 
 - Apply cuts and speed changes from `project.json`
 - Add the webcam as a picture-in-picture overlay
-- Add a `--jobs N` option to run several conversions at once (M-series Max chips have two media engines)
+- Export several projects at once (M-series Max chips have two media engines)
 - Add a `prune` command that removes the duplicate HLS segments and keeps projects editable
 - Move to the macOS 27 `AVAssetReader`/`AVAssetWriter` output-provider and input-receiver APIs
 
@@ -116,4 +127,4 @@ Ideas for next steps:
 
 MIT. See [LICENSE](LICENSE).
 
-`ss2mp4` isn't affiliated with Screen Studio. It reads the project files that Screen Studio writes and never changes them.
+ss2mp4 isn't affiliated with Screen Studio. It reads the project files that Screen Studio writes and never changes them.
